@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Development Excel Tools Suite</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                🛠️ Android Development Excel Tools Suite
+            </h1>
+            <p>Bộ công cụ chuyên dụng xử lý Excel cho phát triển Android - Tự động hóa quy trình từ Functional Spec đến Requirements Management</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Individual Tools Section -->
+            <div class="tool-grid">
+                <!-- Tool 1: Excel Tree Flattener -->
+                <div class="tool-card" id="tool1">
+                    <div class="tool-icon">📊</div>
+                    <div class="tool-title">Excel Tree Flattener</div>
+                    <div class="tool-description">
+                        Chuyển đổi cấu trúc tree trong Excel thành dạng flat, giữ nguyên tất cả thông tin hierarchy và model support.
+                    </div>
+                    <ul class="tool-features">
+                        <li>Flatten cấu trúc tree thành flat structure</li>
+                        <li>Giữ nguyên tất cả cột model support (x/○/0)</li>
+                        <li>Build hierarchy tự động</li>
+                        <li>Preview trước khi export</li>
+                    </ul>
+                </div>
+
+                <!-- Tool 2: Spec to Requirements Converter -->
+                <div class="tool-card" id="tool2">
+                    <div class="tool-icon">🔄</div>
+                    <div class="tool-title">Spec to Requirements Converter</div>
+                    <div class="tool-description">
+                        Chuyển đổi từ Weather Functional Spec sang định dạng 要件情報 với auto model support mapping.
+                    </div>
+                    <ul class="tool-features">
+                        <li>Auto mapping model support (x/○/0 → ×/〇)</li>
+                        <li>Tự động điền 要件ステータス = "Fix済み"</li>
+                        <li>Mapping Tag, Link, Functional Spec</li>
+                        <li>Tạo 要件名称 theo format chuẩn</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tool Buttons -->
+            <div class="tool-buttons">
+                <button class="btn btn-primary btn-large" onclick="openTool('flatten')">
+                    📊 Open Tree Flattener
+                </button>
+                <button class="btn btn-primary btn-large" onclick="openTool('converter')">
+                    🔄 Open Requirements Converter
+                </button>
+            </div>
+
+            <!-- Automation Section -->
+            <div class="automation-section">
+                <h2>
+                    🚀 One-Click Automation
+                </h2>
+                <div class="automation-description">
+                    Quy trình tự động hóa hoàn toàn: Chỉ cần upload file Weather gốc và Requirements template, 
+                    hệ thống sẽ tự động thực hiện flatten → convert → export file kết quả.
+                </div>
+
+                <!-- Upload Areas for Automation -->
+                <div class="upload-section">
+                    <div>
+                        <div class="upload-area" id="autoWeatherUpload" onclick="document.getElementById('autoWeatherInput').click()">
+                            <div class="upload-icon">📈</div>
+                            <div class="upload-text">Weather Functional Spec (Original)</div>
+                            <div class="upload-subtext">File gốc chưa flatten - Tree structure</div>
+                            <input type="file" id="autoWeatherInput" accept=".xlsx,.xls" style="display: none;">
+                            <div class="file-info" id="autoWeatherInfo" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="upload-area" id="autoTemplateUpload" onclick="document.getElementById('autoTemplateInput').click()">
+                            <div class="upload-icon">📋</div>
+                            <div class="upload-text">Requirements Template</div>
+                            <div class="upload-subtext">要件_コミット管理情報_コミット整理_テンプレート.xlsx</div>
+                            <input type="file" id="autoTemplateInput" accept=".xlsx,.xls" style="display: none;">
+                            <div class="file-info" id="autoTemplateInfo" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status and Progress -->
+                <div class="status" id="autoStatus">
+                    <div class="spinner" id="autoSpinner" style="display: none;"></div>
+                    <span id="autoStatusText"></span>
+                </div>
+
+                <div class="progress-bar" id="autoProgress">
+                    <div class="progress-fill" id="autoProgressFill"></div>
+                </div>
+
+                <!-- Automation Controls -->
+                <div class="automation-controls">
+                    <button class="btn btn-success btn-large" id="autoProcessBtn" disabled onclick="runAutomation()">
+                        ⚡ Auto Process (Flatten + Convert)
+                    </button>
+                    <button class="btn btn-warning" onclick="clearAutomation()">
+                        🗑️ Clear All
+                    </button>
+                </div>
+
+                <!-- Features Grid -->
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <div class="feature-title">🔧 Tự động Flatten</div>
+                        <div class="feature-description">Chuyển đổi cấu trúc tree thành flat, giữ nguyên tất cả model support columns</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-title">🎯 Smart Mapping</div>
+                        <div class="feature-description">Tự động map model support (x/○/0 → ×/〇) và điền 要件ステータス</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-title">📊 One-Click Export</div>
+                        <div class="feature-description">Xuất file Excel hoàn chỉnh với đầy đủ thông tin requirements</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-title">⚡ Zero Configuration</div>
+                        <div class="feature-description">Không cần setup, chỉ cần upload 2 file và nhấn nút</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
