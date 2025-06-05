@@ -501,7 +501,7 @@
                     // Tìm header row
                     let headerRowIndex = -1;
                     for (let i = 0; i < allData.length; i++) {
-                        if (allData[i][0] === 'No.' && allData[i][1] === 'Chapter') {
+                        if (allData[i][1] === 'Chapter') {
                             headerRowIndex = i;
                             break;
                         }
@@ -515,9 +515,11 @@
                     const dataRows = allData.slice(headerRowIndex + 1);
 
                     // Lọc chỉ các row có WEA_
-                    this.originalData = dataRows.filter(row => row[0] && row[0].startsWith('WEA_'));
-
-                    this.showStatus('success', `Đã đọc thành công ${this.originalData.length} dòng WEA từ sheet "${functionalSpecSheet}"`);
+                    this.originalData = dataRows.filter(row => {
+                    // Chỉ cần check có ID không (không rỗng và có nội dung)
+                    return row[0] && row[0].toString().trim() !== '';
+                    });
+                    this.showStatus('success', `Đã đọc thành công ${this.originalData.length} functional "${functionalSpecSheet}"`);
                     this.displayOriginalData();
                     document.getElementById('flattenBtn').disabled = false;
 
