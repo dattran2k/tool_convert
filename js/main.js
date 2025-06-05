@@ -196,42 +196,87 @@ class AutomationSuite {
         }
     }
 
-    performFlatten() {
-        const flattened = [];
-        let currentChapter = '';
-        let currentSection = '';
-        let currentSubsection = '';
+  performFlatten() {
+      const flattened = [];
+      let currentChapter = '';
+      let currentSection = '';
+      let currentSubsection = '';
 
-        for (const row of this.weatherData.rows) {
-            const [no, chapter, section, subsection, spec, ...rest] = row;
+      // Lưu trữ link và tag của từng level
+      let chapterLink = '', chapterTag = '';
+      let sectionLink = '', sectionTag = '';
+      let subsectionLink = '', subsectionTag = '';
 
-            if (chapter && chapter.trim() !== '') {
-                currentChapter = chapter.trim();
-                currentSection = '';
-                currentSubsection = '';
-            }
-            if (section && section.trim() !== '') {
-                currentSection = section.trim();
-                currentSubsection = '';
-            }
-            if (subsection && subsection.trim() !== '') {
-                currentSubsection = subsection.trim();
-            }
+      for (const row of this.weatherData.rows) {
+          const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
 
-            const flatRow = [
-                no,
-                currentChapter,
-                currentSection,
-                currentSubsection,
-                spec,
-                ...rest
-            ];
+          // Cập nhật Chapter level
+          if (chapter && chapter.trim() !== '') {
+              currentChapter = chapter.trim();
+              chapterLink = link || '';
+              chapterTag = tag || '';
+              // Reset lower levels
+              currentSection = '';
+              currentSubsection = '';
+              sectionLink = '';
+              sectionTag = '';
+              subsectionLink = '';
+              subsectionTag = '';
+          }
 
-            flattened.push(flatRow);
-        }
+          // Cập nhật Section level
+          if (section && section.trim() !== '') {
+              currentSection = section.trim();
+              sectionLink = link || '';
+              sectionTag = tag || '';
+              // Reset lower level
+              currentSubsection = '';
+              subsectionLink = '';
+              subsectionTag = '';
+          }
 
-        return flattened;
-    }
+          // Cập nhật Subsection level
+          if (subsection && subsection.trim() !== '') {
+              currentSubsection = subsection.trim();
+              subsectionLink = link || '';
+              subsectionTag = tag || '';
+          }
+
+          // Chỉ xử lý dòng có functional specification
+          if (spec && spec.trim() !== '') {
+              // Gộp link từ tất cả levels
+              const allLinks = [
+                  chapterLink,
+                  sectionLink,
+                  subsectionLink,
+                  link || ''
+              ].filter(l => l && l.trim() !== '').join('\n');
+
+              // Gộp tag từ tất cả levels
+              const allTags = [
+                  chapterTag,
+                  sectionTag,
+                  subsectionTag,
+                  tag || ''
+              ].filter(t => t && t.trim() !== '').join('\n');
+
+              const flatRow = [
+                  no,
+                  currentChapter,
+                  currentSection,
+                  currentSubsection,
+                  spec,
+                  allLinks,    // Gộp tất cả links
+                  allTags,     // Gộp tất cả tags
+                  ...rest
+              ];
+
+              flattened.push(flatRow);
+          }
+      }
+
+      return flattened;
+  }
 
     performConvert() {
         const converted = [];
