@@ -492,7 +492,7 @@
 
                 this.weatherData = {
                     headers: headers,
-                    allRows: allWeaRows,  // Tất cả dòng WEA_ để build hierarchy
+                    allRows: dataRows,  // Tất cả dòng WEA_ để build hierarchy
                     rows: weatherRows,     // Chỉ dòng có spec để convert
                     modelColumns: modelColumns  // Thông tin mapping model columns
                 };
@@ -658,7 +658,7 @@
                         requirementName,           // 6: 要件名称 (UPDATED - chapter_section_subsection)
                         '',                        // 7: 要件種別
                         '',                        // 8: 要求元
-                        'V7100054',               // 9: 仕様書バージョン
+                        '',               // 9: 仕様書バージョン
                         specFileName,             // 10: 仕様書ファイル名 (UPDATED format)
                         spec || '',               // 11: 要件内容
                         tag || '',                // 12: ラベル

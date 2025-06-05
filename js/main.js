@@ -353,7 +353,7 @@ class AutomationSuite {
                 requirementName,           // 6: 要件名称 (UPDATED)
                 '',                        // 7: 要件種別
                 '',                        // 8: 要求元
-                'V7100054',               // 9: 仕様書バージョン
+                '',               // 9: 仕様書バージョン
                 specFileName,             // 10: 仕様書ファイル名 (UPDATED)
                 spec || '',               // 11: 要件内容
                 tag || '',                // 12: ラベル
