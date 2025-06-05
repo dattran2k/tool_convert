@@ -16,7 +16,7 @@ class AutomationSuite {
     async handleWeatherFile(file) {
         if (!file) return;
 
-        this.showAutoStatus('info', 'Đang đọc Weather Functional Spec...', true);
+        this.showAutoStatus('info', 'Đang đọc Functional Spec file...', true);
 
         try {
             const buffer = await file.arrayBuffer();
@@ -25,12 +25,13 @@ class AutomationSuite {
                 cellFormulas: true,
                 cellDates: true,
                 cellNF: true,
-                sheetStubs: true
+                sheetStubs: true,
+                type: 'array'
             });
 
             // Tìm sheet Functional_Spec
-            const functionalSpecSheet = workbook.SheetNames.find(name => 
-                name.toLowerCase().includes('functional') || 
+            const functionalSpecSheet = workbook.SheetNames.find(name =>
+                name.toLowerCase().includes('functional') ||
                 name.toLowerCase().includes('spec') ||
                 name.includes('仕様')
             );
@@ -54,9 +55,9 @@ class AutomationSuite {
                 allData.push(rowData);
             }
 
-            // Tìm header row
+            // Tìm header row - tìm trong nhiều dòng đầu
             let headerRowIndex = -1;
-            for (let i = 0; i < allData.length; i++) {
+            for (let i = 0; i < Math.min(10, allData.length); i++) {
                 if (allData[i][0] === 'No.' && allData[i][1] === 'Chapter') {
                     headerRowIndex = i;
                     break;
@@ -65,7 +66,10 @@ class AutomationSuite {
 
             const headers = allData[headerRowIndex];
             const dataRows = allData.slice(headerRowIndex + 1);
-            const weatherRows = dataRows.filter(row => row[0] && row[0].startsWith('WEA_'));
+            const weatherRows = dataRows.filter(row => {
+                // Chỉ cần check có ID không (không rỗng và có nội dung)
+                return row[0] && row[0].toString().trim() !== '';
+            });
 
             this.weatherData = {
                 headers: headers,
@@ -74,10 +78,10 @@ class AutomationSuite {
 
             document.getElementById('autoWeatherUpload').classList.add('loaded');
             document.getElementById('autoWeatherInfo').style.display = 'block';
-            document.getElementById('autoWeatherInfo').textContent = 
-                `✅ Đã load ${weatherRows.length} dòng WEA`;
+            document.getElementById('autoWeatherInfo').textContent =
+                `✅ Đã load ${weatherRows.length} functional requirements`;
 
-            this.showAutoStatus('success', `Đã đọc ${weatherRows.length} weather requirements`);
+            this.showAutoStatus('success', `Đã đọc ${weatherRows.length} functional requirements`);
             this.checkAutoReady();
 
         } catch (error) {
@@ -101,7 +105,7 @@ class AutomationSuite {
             });
 
             // Tìm sheet 要件情報
-            const requirementsSheet = workbook.SheetNames.find(name => 
+            const requirementsSheet = workbook.SheetNames.find(name =>
                 name.includes('要件情報') || name.includes('要件')
             );
 
@@ -117,7 +121,7 @@ class AutomationSuite {
 
             document.getElementById('autoTemplateUpload').classList.add('loaded');
             document.getElementById('autoTemplateInfo').style.display = 'block';
-            document.getElementById('autoTemplateInfo').textContent = 
+            document.getElementById('autoTemplateInfo').textContent =
                 `✅ Template loaded: Sheet "${requirementsSheet}"`;
 
             this.showAutoStatus('success', 'Đã đọc template thành công');
@@ -131,19 +135,19 @@ class AutomationSuite {
     buildTemplateModelMap(worksheet) {
         const modelMap = {};
         const range = XLSX.utils.decode_range(worksheet['!ref']);
-        
+
         for (let C = range.s.c; C <= range.e.c; ++C) {
             const cellAddress = XLSX.utils.encode_cell({c: C, r: 1});
             const cell = worksheet[cellAddress];
             if (cell && cell.v && typeof cell.v === 'string') {
                 const value = cell.v.toString();
-                const modelMatch = value.match(/([EG]B\d{4}[VU])/); 
+                const modelMatch = value.match(/([EG]B\d{4}[VU])/);
                 if (modelMatch) {
                     modelMap[modelMatch[1]] = C;
                 }
             }
         }
-        
+
         return modelMap;
     }
 
@@ -171,7 +175,7 @@ class AutomationSuite {
             this.flattenedData = this.performFlatten();
             this.setProgress(40);
 
-            // Step 2: Convert 
+            // Step 2: Convert
             this.showAutoStatus('info', 'Bước 2/3: Đang convert sang requirements format...', true);
             await this.sleep(500);
 
@@ -200,7 +204,7 @@ class AutomationSuite {
 
         for (const row of this.weatherData.rows) {
             const [no, chapter, section, subsection, spec, ...rest] = row;
-            
+
             if (chapter && chapter.trim() !== '') {
                 currentChapter = chapter.trim();
                 currentSection = '';
@@ -237,53 +241,85 @@ class AutomationSuite {
         const specRows = this.flattenedData.filter(row => row[4] && row[4].trim() !== '');
 
         for (const row of specRows) {
-            const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
+               const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
 
-            const currentChapter = chapter || '';
-            let currentSection = '';
-            if (subsection && subsection.trim() !== '') {
-                currentSection = subsection.trim();
-            } else if (section && section.trim() !== '') {
-                currentSection = section.trim();
+                                // Vì file đã flatten nên chapter và section đã có sẵn ở mọi dòng
+                                const currentChapter = chapter || '';
+
+                                // Ưu tiên subsection, nếu không có thì lấy section
+                                let currentSection = '';
+                                if (subsection && subsection.trim() !== '') {
+                                    currentSection = subsection.trim();
+                                } else if (section && section.trim() !== '') {
+                                    currentSection = section.trim();
+                                }
+
+                                // Tạo 要件ID từ cột No. (WEA_1.1.1.1)
+                                const requirementId = no || '';
+
+                                // Tạo 要件名称 theo format mới: chapter_section_subsection (không có No.)
+                                let requirementName = '';
+                                const nameParts = [];
+                                if (currentChapter && currentChapter.trim() !== '') {
+                                    nameParts.push(currentChapter.trim());
+                                }
+                                if (section && section.trim() !== '') {
+                                    nameParts.push(section.trim());
+                                }
+                                if (subsection && subsection.trim() !== '') {
+                                    nameParts.push(subsection.trim());
+                                }
+                                requirementName = nameParts.join('_');
+
+            // Tạo 仕様書ファイル名 theo format mới - EXTRACT APP NAME từ ID
+            let appName = 'App';
+
+            // Thử extract app name từ ID pattern
+            if (no.includes('_')) {
+                const prefix = no.split('_')[0];
+                if (prefix.length >= 3) {
+                    // Map common prefixes
+                    const appMap = {
+                        'WEA': 'Weather',
+                        'PED': 'Pedometer',
+                        'CAL': 'Calendar',
+                        'CAM': 'Camera',
+                        'GAL': 'Gallery',
+                        'MUS': 'Music',
+                        'VID': 'Video',
+                        'MSG': 'Message',
+                        'PHO': 'Phone',
+                        'CON': 'Contact'
+                    };
+                    appName = appMap[prefix] || prefix;
+                }
             }
 
-            // Tạo 要件名称
-            let requirementName = '';
-            if (currentChapter && currentSection) {
-                requirementName = `${currentChapter}_${currentSection}\n${no}`;
-            } else if (currentChapter) {
-                requirementName = `${currentChapter}\n${no}`;
-            } else if (currentSection) {
-                requirementName = `${currentSection}\n${no}`;
-            } else {
-                requirementName = no;
-            }
-
-            const specFileName = `要求仕様書_Weather_国内SP_Functional_Spec\n${no}`;
+            const specFileName = `要求仕様書_${appName}_国内SP_Functional_Spec_no.${no}`;
 
             // Tạo base row
             const newRow = [
-                rowIndex,
-                'Weather',
-                currentChapter,
-                currentSection,
-                '',
-                '',
-                requirementName,
-                '',
-                '',
-                'V7100054',
-                specFileName,
-                spec || '',
-                tag || '',
-                link || '',
-                '',
-                '',
-                'Fix済み',
-                '',
-                '',
-                '',
-                ''
+                rowIndex,                  // 0: No
+                appName,                   // 1: 機能名称 (auto-detect từ ID)
+                currentChapter,            // 2: 章
+                currentSection,            // 3: 節
+                requirementId,             // 4: 要件ID (NEW)
+                '',                        // 5: SubID
+                requirementName,           // 6: 要件名称 (UPDATED)
+                '',                        // 7: 要件種別
+                '',                        // 8: 要求元
+                'V7100054',               // 9: 仕様書バージョン
+                specFileName,             // 10: 仕様書ファイル名 (UPDATED)
+                spec || '',               // 11: 要件内容
+                tag || '',                // 12: ラベル
+                link || '',               // 13: 備考
+                '',                        // 14: 要件添付ファイルパス
+                '',                        // 15: 要件原文ファイル添付ファイルパス
+                'Fix済み',                   // 16: 要件ステータス
+                '',                        // 17: コミット管理情報ID
+                '',                        // 18: コミット管理情報名称
+                '',                        // 19: コミット管理情報内容
+                ''                         // 20: EB1190V_E
             ];
 
             // Mở rộng với model support
@@ -297,7 +333,7 @@ class AutomationSuite {
 
     extendRowWithModelSupport(baseRow, sourceRow) {
         const extendedRow = [...baseRow];
-        
+
         while (extendedRow.length < 100) {
             extendedRow.push('');
         }
@@ -307,7 +343,7 @@ class AutomationSuite {
         for (const modelCol of modelColumns) {
             const sourceValue = sourceRow[modelCol.sourceIndex];
             const templateIndex = modelCol.templateIndex;
-            
+
             if (templateIndex !== -1 && sourceValue) {
                 let convertedValue = '';
                 if (sourceValue === '○' || sourceValue === 'O' || sourceValue === 'o' || sourceValue === '0') {
@@ -317,18 +353,18 @@ class AutomationSuite {
                 } else {
                     convertedValue = sourceValue;
                 }
-                
+
                 extendedRow[templateIndex] = convertedValue;
             }
         }
-        
+
         return extendedRow;
     }
 
     getModelColumns() {
         const modelColumns = [];
         const headers = this.weatherData.headers;
-        
+
         for (let i = 7; i < headers.length; i++) {
             const header = headers[i];
             if (header && header.match && header.match(/[EG]B\d{4}[VU]/)) {
@@ -340,13 +376,13 @@ class AutomationSuite {
                 });
             }
         }
-        
+
         return modelColumns;
     }
 
     performExport() {
         const newWorkbook = XLSX.utils.book_new();
-        
+
         // Copy tất cả sheets từ template
         const originalWorkbook = this.templateData.workbook;
         originalWorkbook.SheetNames.forEach(sheetName => {
@@ -369,7 +405,7 @@ class AutomationSuite {
 
         // Export file
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        const filename = `automated_requirements_${timestamp}.xlsx`;
+        const filename = `automated_requirements_v2_${timestamp}.xlsx`;
         XLSX.writeFile(newWorkbook, filename);
     }
 

@@ -316,572 +316,576 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>
-                🔄 Spec to Requirements Converter
-            </h1>
-            <p>Chuyển đổi từ Functional Spec sang định dạng 要件情報 - Android Development Tool</p>
-        </div>
-
-        <div class="main-content">
-            <!-- Mapping Rules -->
-            <div class="mapping-rules">
-                <h4>📋 Quy tắc chuyển đổi:</h4>
-                <div class="rule-item">章 (Chapter) = Lấy trực tiếp từ file đã flatten (column Chapter)</div>
-                <div class="rule-item">節 (Section) = Lấy trực tiếp từ file đã flatten (column Section hoặc Subsection)</div>
-                <div class="rule-item">要件名称 = "章" + "_" + "節" + "\n" + "WEA_No." (col 6)</div>
-                <div class="rule-item">要件ステータス = Luôn điền "Fix済み" (col 16)</div>
-                <div class="rule-item">Model Support = Tự động map từ weather spec (○/O/0 → 〇, ×/X → ×)</div>
-                <div class="rule-item">Functional Specification → 要件内容 (col 11)</div>
-                <div class="rule-item">Tag → ラベル (col 12)</div>
-                <div class="rule-item">Link → 備考 (col 13)</div>
-                <div class="rule-item">仕様書ファイル名 = "要求仕様書_Weather_国内SP_Functional_Spec\nWEA_[No.]" (col 10)</div>
-            </div>
-
-            <!-- Upload Areas -->
-            <div class="upload-section">
-                <!-- Weather Spec File -->
-                <div>
-                    <div class="upload-area" id="weatherUploadArea">
-                        <div class="upload-icon">📊</div>
-                        <div class="upload-text">Weather Functional Spec (Flattened)</div>
-                        <div class="upload-subtext">File đã flatten bằng Excel Tree Flattener tool</div>
-                        <input type="file" id="weatherFileInput" accept=".xlsx,.xls" style="display: none;">
-                        <div class="file-info" id="weatherFileInfo" style="display: none;"></div>
-                    </div>
-                </div>
-
-                <!-- Template File -->
-                <div>
-                    <div class="upload-area" id="templateUploadArea">
-                        <div class="upload-icon">📋</div>
-                        <div class="upload-text">Requirements Template</div>
-                        <div class="upload-subtext">要件_コミット管理情報_コミット整理_テンプレート.xlsx</div>
-                        <input type="file" id="templateFileInput" accept=".xlsx,.xls" style="display: none;">
-                        <div class="file-info" id="templateFileInfo" style="display: none;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Status -->
-            <div class="status" id="status">
-                <div class="spinner" id="spinner" style="display: none;"></div>
-                <span id="statusText"></span>
-            </div>
-
-            <!-- Controls -->
-            <div class="controls">
-                <button class="btn btn-primary" id="convertBtn" disabled>
-                    🔄 Convert to Requirements
-                </button>
-                <button class="btn btn-success" id="exportBtn" disabled>
-                    💾 Export Excel
-                </button>
-                <button class="btn btn-danger" id="clearBtn">
-                    🗑️ Clear All
-                </button>
-            </div>
-
-            <!-- Preview -->
-            <div class="preview-container" id="previewContainer" style="display: none;">
-                <h3>✅ Converted Requirements Data</h3>
-                <div class="preview-content" id="previewContent"></div>
-            </div>
-        </div>
+<div class="container">
+    <div class="header">
+        <h1>
+            🔄 Spec to Requirements Converter
+        </h1>
+        <p>Chuyển đổi từ Functional Spec sang định dạng 要件情報 - Android Development Tool</p>
     </div>
 
-    <script>
-        class SpecToRequirementsConverter {
-            constructor() {
-                this.weatherData = null;
-                this.templateData = null;
-                this.convertedData = [];
-                this.initializeEventListeners();
-            }
+    <div class="main-content">
+        <!-- Mapping Rules -->
+        <div class="mapping-rules">
+            <h4>📋 Quy tắc chuyển đổi (Updated v2.0):</h4>
+            <div class="rule-item">章 (Chapter) = Lấy trực tiếp từ file đã flatten (column Chapter)</div>
+            <div class="rule-item">節 (Section) = Lấy trực tiếp từ file đã flatten (column Section hoặc Subsection)</div>
+            <div class="rule-item">要件ID = Lấy từ cột "No." (WEA_1.1.1.1) - NEW (col 4)</div>
+            <div class="rule-item">要件名称 = "chapter_section_subsection" (không có No.) - UPDATED (col 6)</div>
+            <div class="rule-item">要件ステータス = Luôn điền "Fix済み" (col 16)</div>
+            <div class="rule-item">Model Support = Tự động map từ weather spec (○/O/0 → 〇, ×/X → ×)</div>
+            <div class="rule-item">Functional Specification → 要件内容 (col 11)</div>
+            <div class="rule-item">Tag → ラベル (col 12)</div>
+            <div class="rule-item">Link → 備考 (col 13)</div>
+            <div class="rule-item">仕様書ファイル名 = "要求仕様書_Weather_国内SP_Functional_Spec_WEA_1.1.1.1" - UPDATED (col 10)</div>
+        </div>
 
-            initializeEventListeners() {
-                // Weather file upload
-                const weatherUploadArea = document.getElementById('weatherUploadArea');
-                const weatherFileInput = document.getElementById('weatherFileInput');
-                weatherUploadArea.addEventListener('click', () => weatherFileInput.click());
-                weatherFileInput.addEventListener('change', (e) => this.handleWeatherFile(e.target.files[0]));
+        <!-- Upload Areas -->
+        <div class="upload-section">
+            <!-- Weather Spec File -->
+            <div>
+                <div class="upload-area" id="weatherUploadArea">
+                    <div class="upload-icon">📊</div>
+                    <div class="upload-text">Weather Functional Spec (Flattened)</div>
+                    <div class="upload-subtext">File đã flatten bằng Excel Tree Flattener tool</div>
+                    <input type="file" id="weatherFileInput" accept=".xlsx,.xls,.xlsm" style="display: none;">
+                    <div class="file-info" id="weatherFileInfo" style="display: none;"></div>
+                </div>
+            </div>
 
-                // Template file upload
-                const templateUploadArea = document.getElementById('templateUploadArea');
-                const templateFileInput = document.getElementById('templateFileInput');
-                templateUploadArea.addEventListener('click', () => templateFileInput.click());
-                templateFileInput.addEventListener('change', (e) => this.handleTemplateFile(e.target.files[0]));
+            <!-- Template File -->
+            <div>
+                <div class="upload-area" id="templateUploadArea">
+                    <div class="upload-icon">📋</div>
+                    <div class="upload-text">Requirements Template</div>
+                    <div class="upload-subtext">要件_コミット管理情報_コミット整理_テンプレート.xlsx</div>
+                    <input type="file" id="templateFileInput" accept=".xlsx,.xls,.xlsm" style="display: none;">
+                    <div class="file-info" id="templateFileInfo" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
 
-                // Buttons
-                document.getElementById('convertBtn').addEventListener('click', () => this.convertData());
-                document.getElementById('exportBtn').addEventListener('click', () => this.exportData());
-                document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
-            }
+        <!-- Status -->
+        <div class="status" id="status">
+            <div class="spinner" id="spinner" style="display: none;"></div>
+            <span id="statusText"></span>
+        </div>
 
-            async handleWeatherFile(file) {
-                if (!file) return;
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" id="convertBtn" disabled>
+                🔄 Convert to Requirements
+            </button>
+            <button class="btn btn-success" id="exportBtn" disabled>
+                💾 Export Excel
+            </button>
+            <button class="btn btn-danger" id="clearBtn">
+                🗑️ Clear All
+            </button>
+        </div>
 
-                this.showStatus('info', 'Đang đọc Weather Functional Spec...', true);
+        <!-- Preview -->
+        <div class="preview-container" id="previewContainer" style="display: none;">
+            <h3>✅ Converted Requirements Data</h3>
+            <div class="preview-content" id="previewContent"></div>
+        </div>
+    </div>
+</div>
 
-                try {
-                    const buffer = await file.arrayBuffer();
-                    const workbook = XLSX.read(buffer, {
-                        cellStyles: true,
-                        cellFormulas: true,
-                        cellDates: true,
-                        cellNF: true,
-                        sheetStubs: true
-                    });
+<script>
+    class SpecToRequirementsConverter {
+        constructor() {
+            this.weatherData = null;
+            this.templateData = null;
+            this.convertedData = [];
+            this.initializeEventListeners();
+        }
 
-                    // Tìm sheet Functional_Spec
-                    const functionalSpecSheet = workbook.SheetNames.find(name => 
-                        name.toLowerCase().includes('functional') || 
-                        name.toLowerCase().includes('spec') ||
-                        name.includes('仕様')
-                    );
+        initializeEventListeners() {
+            // Weather file upload
+            const weatherUploadArea = document.getElementById('weatherUploadArea');
+            const weatherFileInput = document.getElementById('weatherFileInput');
+            weatherUploadArea.addEventListener('click', () => weatherFileInput.click());
+            weatherFileInput.addEventListener('change', (e) => this.handleWeatherFile(e.target.files[0]));
 
-                    if (!functionalSpecSheet) {
-                        throw new Error('Không tìm thấy sheet Functional_Spec');
-                    }
+            // Template file upload
+            const templateUploadArea = document.getElementById('templateUploadArea');
+            const templateFileInput = document.getElementById('templateFileInput');
+            templateUploadArea.addEventListener('click', () => templateFileInput.click());
+            templateFileInput.addEventListener('change', (e) => this.handleTemplateFile(e.target.files[0]));
 
-                    const worksheet = workbook.Sheets[functionalSpecSheet];
-                    const range = XLSX.utils.decode_range(worksheet['!ref']);
+            // Buttons
+            document.getElementById('convertBtn').addEventListener('click', () => this.convertData());
+            document.getElementById('exportBtn').addEventListener('click', () => this.exportData());
+            document.getElementById('clearBtn').addEventListener('click', () => this.clearAll());
+        }
 
-                    // Đọc tất cả dữ liệu
-                    let allData = [];
-                    for (let R = range.s.r; R <= range.e.r; ++R) {
-                        let rowData = [];
-                        for (let C = range.s.c; C <= range.e.c; ++C) {
-                            const cellAddress = XLSX.utils.encode_cell({c: C, r: R});
-                            const cell = worksheet[cellAddress];
-                            rowData.push(cell ? (cell.v || '') : '');
-                        }
-                        allData.push(rowData);
-                    }
+        async handleWeatherFile(file) {
+            if (!file) return;
 
-                    // Tìm header row
-                    let headerRowIndex = -1;
-                    for (let i = 0; i < allData.length; i++) {
-                        if (allData[i][0] === 'No.' && allData[i][1] === 'Chapter') {
-                            headerRowIndex = i;
-                            break;
-                        }
-                    }
+            this.showStatus('info', 'Đang đọc Weather Functional Spec...', true);
 
-                    const headers = allData[headerRowIndex];
-                    const dataRows = allData.slice(headerRowIndex + 1);
+            try {
+                const buffer = await file.arrayBuffer();
+                const workbook = XLSX.read(buffer, {
+                    cellStyles: true,
+                    cellFormulas: true,
+                    cellDates: true,
+                    cellNF: true,
+                    sheetStubs: true
+                });
 
-                    // Đọc TẤT CẢ dòng WEA_ để build hierarchy, không chỉ những dòng có spec
-                    const allWeaRows = dataRows.filter(row => {
-                        return row[0] && row[0].startsWith('WEA_');
-                    });
+                // Tìm sheet Functional_Spec
+                const functionalSpecSheet = workbook.SheetNames.find(name =>
+                    name.toLowerCase().includes('functional') ||
+                    name.toLowerCase().includes('spec') ||
+                    name.includes('仕様')
+                );
 
-                    // Sau đó filter để chỉ convert những dòng có Functional Specification
-                    const weatherRows = allWeaRows.filter(row => {
-                        return row[4] && row[4].trim() !== '';
-                    });
-
-                    // Lấy thông tin model support từ headers (các cột sau cột Tag)
-                    const modelColumns = [];
-                    for (let i = 7; i < headers.length; i++) {
-                        const header = headers[i];
-                        if (header && header.match && header.match(/[EG]B\d{4}[VU]/)) {
-                            modelColumns.push({
-                                name: header,
-                                sourceIndex: i,
-                                templateIndex: this.findModelColumnInTemplate(header)
-                            });
-                        }
-                    }
-
-                    this.weatherData = {
-                        headers: headers,
-                        allRows: allWeaRows,  // Tất cả dòng WEA_ để build hierarchy
-                        rows: weatherRows,     // Chỉ dòng có spec để convert
-                        modelColumns: modelColumns  // Thông tin mapping model columns
-                    };
-
-                    document.getElementById('weatherUploadArea').classList.add('loaded');
-                    document.getElementById('weatherFileInfo').style.display = 'block';
-                    document.getElementById('weatherFileInfo').textContent = 
-                        `✅ Đã load ${weatherRows.length} items có Functional Specification`;
-
-                    this.showStatus('success', `Đã đọc ${weatherRows.length} weather requirements`);
-                    this.checkReadyToConvert();
-
-                } catch (error) {
-                    this.showStatus('error', `Lỗi đọc weather file: ${error.message}`);
+                if (!functionalSpecSheet) {
+                    throw new Error('Không tìm thấy sheet Functional_Spec');
                 }
-            }
 
-            async handleTemplateFile(file) {
-                if (!file) return;
-
-                this.showStatus('info', 'Đang đọc Requirements Template...', true);
-
-                try {
-                    const buffer = await file.arrayBuffer();
-                    const workbook = XLSX.read(buffer, {
-                        cellStyles: true,
-                        cellFormulas: true,
-                        cellDates: true,
-                        cellNF: true,
-                        sheetStubs: true
-                    });
-
-                    // Tìm sheet 要件情報
-                    const requirementsSheet = workbook.SheetNames.find(name => 
-                        name.includes('要件情報') || name.includes('要件')
-                    );
-
-                    if (!requirementsSheet) {
-                        throw new Error('Không tìm thấy sheet 要件情報');
-                    }
-
-                    this.templateData = {
-                        workbook: workbook,
-                        sheetName: requirementsSheet,
-                        modelColumnMap: this.buildTemplateModelMap(workbook.Sheets[requirementsSheet])
-                    };
-
-                    document.getElementById('templateUploadArea').classList.add('loaded');
-                    document.getElementById('templateFileInfo').style.display = 'block';
-                    document.getElementById('templateFileInfo').textContent = 
-                        `✅ Template loaded: Sheet "${requirementsSheet}"`;
-
-                    this.showStatus('success', 'Đã đọc template thành công');
-                    this.updateModelColumnMapping(); // Cập nhật mapping sau khi có template
-                    this.checkReadyToConvert();
-
-                } catch (error) {
-                    this.showStatus('error', `Lỗi đọc template file: ${error.message}`);
-                }
-            }
-
-            findModelColumnInTemplate(modelName) {
-                // Tìm index của model trong template (sẽ được set sau khi load template)
-                if (this.templateData && this.templateData.modelColumnMap) {
-                    return this.templateData.modelColumnMap[modelName] || -1;
-                }
-                return -1;
-            }
-
-            buildTemplateModelMap(worksheet) {
-                // Tạo map từ model name đến column index trong template
-                const modelMap = {};
+                const worksheet = workbook.Sheets[functionalSpecSheet];
                 const range = XLSX.utils.decode_range(worksheet['!ref']);
-                
-                // Tìm model columns trong header rows (thường ở row 2)
-                for (let C = range.s.c; C <= range.e.c; ++C) {
-                    const cellAddress = XLSX.utils.encode_cell({c: C, r: 1}); // Row 2 (index 1)
-                    const cell = worksheet[cellAddress];
-                    if (cell && cell.v && typeof cell.v === 'string') {
-                        const value = cell.v.toString();
-                        // Tìm các model như EB1157V, GB1038V, etc.
-                        const modelMatch = value.match(/([EG]B\d{4}[VU])/); 
-                        if (modelMatch) {
-                            modelMap[modelMatch[1]] = C;
-                        }
+
+                // Đọc tất cả dữ liệu
+                let allData = [];
+                for (let R = range.s.r; R <= range.e.r; ++R) {
+                    let rowData = [];
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                        const cellAddress = XLSX.utils.encode_cell({c: C, r: R});
+                        const cell = worksheet[cellAddress];
+                        rowData.push(cell ? (cell.v || '') : '');
+                    }
+                    allData.push(rowData);
+                }
+
+                // Tìm header row
+                let headerRowIndex = -1;
+                for (let i = 0; i < allData.length; i++) {
+                    if (allData[i][0] === 'No.' && allData[i][1] === 'Chapter') {
+                        headerRowIndex = i;
+                        break;
                     }
                 }
-                
-                console.log('Template model map:', modelMap);
-                return modelMap;
-            }
 
-            updateModelColumnMapping() {
-                // Cập nhật template index cho các model columns sau khi đã load template
-                if (this.weatherData && this.weatherData.modelColumns && this.templateData) {
-                    for (const modelCol of this.weatherData.modelColumns) {
-                        modelCol.templateIndex = this.findModelColumnInTemplate(modelCol.name);
-                    }
-                    console.log('Updated model column mapping:', this.weatherData.modelColumns);
-                }
-            }
+                const headers = allData[headerRowIndex];
+                const dataRows = allData.slice(headerRowIndex + 1);
 
-            checkReadyToConvert() {
-                const convertBtn = document.getElementById('convertBtn');
-                if (this.weatherData && this.templateData) {
-                    convertBtn.disabled = false;
-                } else {
-                    convertBtn.disabled = true;
-                }
-            }
 
-            convertData() {
-                if (!this.weatherData || !this.templateData) return;
 
-                this.showStatus('info', 'Đang chuyển đổi dữ liệu...', true);
+                const weatherRows = dataRows
 
-                try {
-                    const converted = [];
-                    let rowIndex = 1;
-
-                    for (const row of this.weatherData.rows) {
-                        const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
-
-                        // Vì file đã flatten nên chapter và section đã có sẵn ở mọi dòng
-                        const currentChapter = chapter || '';
-                        
-                        // Ưu tiên subsection, nếu không có thì lấy section
-                        let currentSection = '';
-                        if (subsection && subsection.trim() !== '') {
-                            currentSection = subsection.trim();
-                        } else if (section && section.trim() !== '') {
-                            currentSection = section.trim();
-                        }
-
-                        // Tạo 要件名称 theo format: 章_節\nWEA_No.
-                        let requirementName = '';
-                        if (currentChapter && currentSection) {
-                            requirementName = `${currentChapter}_${currentSection}\n${no}`;
-                        } else if (currentChapter) {
-                            requirementName = `${currentChapter}\n${no}`;
-                        } else if (currentSection) {
-                            requirementName = `${currentSection}\n${no}`;
-                        } else {
-                            requirementName = no;
-                        }
-
-                        // Tạo 仕様書ファイル名
-                        const specFileName = `要求仕様書_Weather_国内SP_Functional_Spec\n${no}`;
-
-                        // Tạo base row với 21 cột cơ bản
-                        const newRow = [
-                            rowIndex,                  // 0: No
-                            'Weather',                 // 1: 機能名称
-                            currentChapter,            // 2: 章 (đã flatten)
-                            currentSection,            // 3: 節 (đã flatten)
-                            '',                        // 4: 要件ID
-                            '',                        // 5: SubID
-                            requirementName,           // 6: 要件名称
-                            '',                        // 7: 要件種別
-                            '',                        // 8: 要求元
-                            'V7100054',               // 9: 仕様書バージョン
-                            specFileName,             // 10: 仕様書ファイル名
-                            spec || '',               // 11: 要件内容
-                            tag || '',                // 12: ラベル
-                            link || '',               // 13: 備考
-                            '',                        // 14: 要件添付ファイルパス
-                            '',                        // 15: 要件原文ファイル添付ファイルパス
-                            'Fix済み',                   // 16: 要件ステータス
-                            '',                        // 17: コミット管理情報ID
-                            '',                        // 18: コミット管理情報名称
-                            '',                        // 19: コミット管理情報内容
-                            ''                         // 20: EB1190V_E (エントリー)
-                        ];
-                        
-                        // Mở rộng row để bao gồm tất cả các cột model support
-                        const extendedRow = this.extendRowWithModelSupport(newRow, row);
-
-                        converted.push(extendedRow);
-                        rowIndex++;
-                    }
-
-                    this.convertedData = converted;
-                    this.showStatus('success', `Đã chuyển đổi thành công ${converted.length} requirements`);
-                    this.displayPreview();
-                    document.getElementById('exportBtn').disabled = false;
-
-                } catch (error) {
-                    this.showStatus('error', `Lỗi chuyển đổi: ${error.message}`);
-                }
-            }
-
-            extendRowWithModelSupport(baseRow, sourceRow) {
-                // Mở rộng base row với model support data
-                const extendedRow = [...baseRow];
-                
-                // Đảm bảo row có đủ cột cho template (tối đa 100 cột)
-                while (extendedRow.length < 100) {
-                    extendedRow.push('');
-                }
-                
-                // Điền model support data nếu có
-                if (this.weatherData && this.weatherData.modelColumns) {
-                    for (const modelCol of this.weatherData.modelColumns) {
-                        const sourceValue = sourceRow[modelCol.sourceIndex];
-                        const templateIndex = modelCol.templateIndex;
-                        
-                        if (templateIndex !== -1 && sourceValue) {
-                            // Chuyển đổi giá trị: ○/O/0 -> 〇, ×/X -> ×
-                            let convertedValue = '';
-                            if (sourceValue === '○' || sourceValue === 'O' || sourceValue === 'o' || sourceValue === '0') {
-                                convertedValue = '〇'; // Chữ O tròn tiếng Nhật
-                            } else if (sourceValue === '×' || sourceValue === 'X' || sourceValue === 'x') {
-                                convertedValue = '×';
-                            } else {
-                                convertedValue = sourceValue; // Giữ nguyên giá trị khác
-                            }
-                            
-                            extendedRow[templateIndex] = convertedValue;
-                        }
+                // Lấy thông tin model support từ headers (các cột sau cột Tag)
+                const modelColumns = [];
+                for (let i = 7; i < headers.length; i++) {
+                    const header = headers[i];
+                    if (header && header.match && header.match(/[EG]B\d{4}[VU]/)) {
+                        modelColumns.push({
+                            name: header,
+                            sourceIndex: i,
+                            templateIndex: this.findModelColumnInTemplate(header)
+                        });
                     }
                 }
-                
-                return extendedRow;
-            }
 
-            displayPreview() {
-                const previewContainer = document.getElementById('previewContainer');
-                const previewContent = document.getElementById('previewContent');
-                
-                previewContainer.style.display = 'block';
-                
-                let html = '';
-                const displayCount = Math.min(10, this.convertedData.length);
-                
-                for (let i = 0; i < displayCount; i++) {
-                    const row = this.convertedData[i];
-                    
-                    html += `
-                        <div class="data-row">
-                            <div class="row-fields">
-                                <div>
-                                    <div class="field-group">
-                                        <div class="field-label">No.</div>
-                                        <div class="field-value">${row[0]}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">機能名称</div>
-                                        <div class="field-value">${row[1]}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">章</div>
-                                        <div class="field-value">${row[2]}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">節</div>
-                                        <div class="field-value">${row[3]}</div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="field-group">
-                                        <div class="field-label">要件名称</div>
-                                        <div class="field-value">${row[6]?.substring(0, 100)}${row[6]?.length > 100 ? '...' : ''}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">仕様書バージョン</div>
-                                        <div class="field-value">${row[9]}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">仕様書ファイル名</div>
-                                        <div class="field-value">${row[10]?.substring(0, 80)}${row[10]?.length > 80 ? '...' : ''}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">要件内容</div>
-                                        <div class="field-value">${row[11]?.substring(0, 60)}${row[11]?.length > 60 ? '...' : ''}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">ラベル</div>
-                                        <div class="field-value">${row[12] || ' '}</div>
-                                    </div>
-                                    <div class="field-group">
-                                        <div class="field-label">備考</div>
-                                        <div class="field-value">${row[13] || ' '}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                if (this.convertedData.length > displayCount) {
-                    html += `<div class="count-info">... và ${this.convertedData.length - displayCount} items khác</div>`;
-                }
-                
-                previewContent.innerHTML = html;
-            }
+                this.weatherData = {
+                    headers: headers,
+                    allRows: allWeaRows,  // Tất cả dòng WEA_ để build hierarchy
+                    rows: weatherRows,     // Chỉ dòng có spec để convert
+                    modelColumns: modelColumns  // Thông tin mapping model columns
+                };
 
-            exportData() {
-                if (!this.templateData || this.convertedData.length === 0) return;
+                document.getElementById('weatherUploadArea').classList.add('loaded');
+                document.getElementById('weatherFileInfo').style.display = 'block';
+                document.getElementById('weatherFileInfo').textContent =
+                    `✅ Đã load ${weatherRows.length} items có Functional Specification`;
 
-                try {
-                    // Tạo copy của workbook template
-                    const newWorkbook = XLSX.utils.book_new();
-                    
-                    // Copy tất cả sheets từ template
-                    const originalWorkbook = this.templateData.workbook;
-                    originalWorkbook.SheetNames.forEach(sheetName => {
-                        const originalSheet = originalWorkbook.Sheets[sheetName];
-                        if (sheetName === this.templateData.sheetName) {
-                            // Thay thế sheet 要件情報 với dữ liệu mới
-                            const newSheet = this.createNewRequirementsSheet(originalSheet);
-                            XLSX.utils.book_append_sheet(newWorkbook, newSheet, sheetName);
-                        } else {
-                            // Copy sheet khác như cũ
-                            const copiedSheet = XLSX.utils.aoa_to_sheet(XLSX.utils.sheet_to_json(originalSheet, { header: 1 }));
-                            XLSX.utils.book_append_sheet(newWorkbook, copiedSheet, sheetName);
-                        }
-                    });
+                this.showStatus('success', `Đã đọc ${weatherRows.length} weather requirements`);
+                this.checkReadyToConvert();
 
-                    // Export file
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-                    const filename = `requirements_weather_${timestamp}.xlsx`;
-                    XLSX.writeFile(newWorkbook, filename);
-                    
-                    this.showStatus('success', `Đã export file "${filename}" thành công!`);
-                    
-                } catch (error) {
-                    this.showStatus('error', `Lỗi export: ${error.message}`);
-                }
-            }
-
-            createNewRequirementsSheet(originalSheet) {
-                // Đọc template header (dòng 1-5)
-                const templateData = XLSX.utils.sheet_to_json(originalSheet, { header: 1 });
-                
-                // Tạo dữ liệu mới
-                const newData = [
-                    ...templateData.slice(0, 6), // Giữ nguyên header và dòng mẫu
-                    ...this.convertedData        // Thêm dữ liệu converted
-                ];
-
-                return XLSX.utils.aoa_to_sheet(newData);
-            }
-
-            clearAll() {
-                this.weatherData = null;
-                this.templateData = null;
-                this.convertedData = [];
-                
-                document.getElementById('weatherFileInput').value = '';
-                document.getElementById('templateFileInput').value = '';
-                document.getElementById('weatherUploadArea').classList.remove('loaded');
-                document.getElementById('templateUploadArea').classList.remove('loaded');
-                document.getElementById('weatherFileInfo').style.display = 'none';
-                document.getElementById('templateFileInfo').style.display = 'none';
-                document.getElementById('convertBtn').disabled = true;
-                document.getElementById('exportBtn').disabled = true;
-                document.getElementById('previewContainer').style.display = 'none';
-                document.getElementById('status').style.display = 'none';
-                
-                this.showStatus('info', 'Đã xóa tất cả dữ liệu');
-            }
-
-            showStatus(type, message, showSpinner = false) {
-                const status = document.getElementById('status');
-                const statusText = document.getElementById('statusText');
-                const spinner = document.getElementById('spinner');
-                
-                status.className = `status ${type}`;
-                status.style.display = 'flex';
-                statusText.textContent = message;
-                spinner.style.display = showSpinner ? 'block' : 'none';
-                
-                if (!showSpinner) {
-                    setTimeout(() => {
-                        status.style.display = 'none';
-                    }, 5000);
-                }
+            } catch (error) {
+                this.showStatus('error', `Lỗi đọc weather file: ${error.message}`);
             }
         }
 
-        // Khởi tạo tool khi DOM đã sẵn sàng
-        document.addEventListener('DOMContentLoaded', () => {
-            new SpecToRequirementsConverter();
-        });
-    </script>
+        async handleTemplateFile(file) {
+            if (!file) return;
+
+            this.showStatus('info', 'Đang đọc Requirements Template...', true);
+
+            try {
+                const buffer = await file.arrayBuffer();
+                const workbook = XLSX.read(buffer, {
+                    cellStyles: true,
+                    cellFormulas: true,
+                    cellDates: true,
+                    cellNF: true,
+                    sheetStubs: true
+                });
+
+                // Tìm sheet 要件情報
+                const requirementsSheet = workbook.SheetNames.find(name =>
+                    name.includes('要件情報') || name.includes('要件')
+                );
+
+                if (!requirementsSheet) {
+                    throw new Error('Không tìm thấy sheet 要件情報');
+                }
+
+                this.templateData = {
+                    workbook: workbook,
+                    sheetName: requirementsSheet,
+                    modelColumnMap: this.buildTemplateModelMap(workbook.Sheets[requirementsSheet])
+                };
+
+                document.getElementById('templateUploadArea').classList.add('loaded');
+                document.getElementById('templateFileInfo').style.display = 'block';
+                document.getElementById('templateFileInfo').textContent =
+                    `✅ Template loaded: Sheet "${requirementsSheet}"`;
+
+                this.showStatus('success', 'Đã đọc template thành công');
+                this.updateModelColumnMapping(); // Cập nhật mapping sau khi có template
+                this.checkReadyToConvert();
+
+            } catch (error) {
+                this.showStatus('error', `Lỗi đọc template file: ${error.message}`);
+            }
+        }
+
+        findModelColumnInTemplate(modelName) {
+            // Tìm index của model trong template (sẽ được set sau khi load template)
+            if (this.templateData && this.templateData.modelColumnMap) {
+                return this.templateData.modelColumnMap[modelName] || -1;
+            }
+            return -1;
+        }
+
+        buildTemplateModelMap(worksheet) {
+            // Tạo map từ model name đến column index trong template
+            const modelMap = {};
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+            // Tìm model columns trong header rows (thường ở row 2)
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({c: C, r: 1}); // Row 2 (index 1)
+                const cell = worksheet[cellAddress];
+                if (cell && cell.v && typeof cell.v === 'string') {
+                    const value = cell.v.toString();
+                    // Tìm các model như EB1157V, GB1038V, etc.
+                    const modelMatch = value.match(/([EG]B\d{4}[VU])/);
+                    if (modelMatch) {
+                        modelMap[modelMatch[1]] = C;
+                    }
+                }
+            }
+
+            console.log('Template model map:', modelMap);
+            return modelMap;
+        }
+
+        updateModelColumnMapping() {
+            // Cập nhật template index cho các model columns sau khi đã load template
+            if (this.weatherData && this.weatherData.modelColumns && this.templateData) {
+                for (const modelCol of this.weatherData.modelColumns) {
+                    modelCol.templateIndex = this.findModelColumnInTemplate(modelCol.name);
+                }
+                console.log('Updated model column mapping:', this.weatherData.modelColumns);
+            }
+        }
+
+        checkReadyToConvert() {
+            const convertBtn = document.getElementById('convertBtn');
+            if (this.weatherData && this.templateData) {
+                convertBtn.disabled = false;
+            } else {
+                convertBtn.disabled = true;
+            }
+        }
+
+        convertData() {
+            if (!this.weatherData || !this.templateData) return;
+
+            this.showStatus('info', 'Đang chuyển đổi dữ liệu...', true);
+
+            try {
+                const converted = [];
+                let rowIndex = 1;
+
+                for (const row of this.weatherData.rows) {
+                    const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
+
+                    // Vì file đã flatten nên chapter và section đã có sẵn ở mọi dòng
+                    const currentChapter = chapter || '';
+
+                    // Ưu tiên subsection, nếu không có thì lấy section
+                    let currentSection = '';
+                    if (subsection && subsection.trim() !== '') {
+                        currentSection = subsection.trim();
+                    } else if (section && section.trim() !== '') {
+                        currentSection = section.trim();
+                    }
+
+                    // Tạo 要件ID từ cột No. (WEA_1.1.1.1)
+                    const requirementId = no || '';
+
+                    // Tạo 要件名称 theo format mới: chapter_section_subsection (không có No.)
+                    let requirementName = '';
+                    const nameParts = [];
+                    if (currentChapter && currentChapter.trim() !== '') {
+                        nameParts.push(currentChapter.trim());
+                    }
+                    if (section && section.trim() !== '') {
+                        nameParts.push(section.trim());
+                    }
+                    if (subsection && subsection.trim() !== '') {
+                        nameParts.push(subsection.trim());
+                    }
+                    requirementName = nameParts.join('_');
+
+                    // Tạo 仕様書ファイル名 theo format mới
+                    const specFileName = `要求仕様書_Weather_国内SP_Functional_Spec_no.${no}`;
+
+                    // Tạo base row với 21 cột cơ bản
+                    const newRow = [
+                        rowIndex,                  // 0: No
+                        'Weather',                 // 1: 機能名称
+                        currentChapter,            // 2: 章 (đã flatten)
+                        currentSection,            // 3: 節 (đã flatten)
+                        requirementId,             // 4: 要件ID (NEW - từ cột No.)
+                        '',                        // 5: SubID
+                        requirementName,           // 6: 要件名称 (UPDATED - chapter_section_subsection)
+                        '',                        // 7: 要件種別
+                        '',                        // 8: 要求元
+                        'V7100054',               // 9: 仕様書バージョン
+                        specFileName,             // 10: 仕様書ファイル名 (UPDATED format)
+                        spec || '',               // 11: 要件内容
+                        tag || '',                // 12: ラベル
+                        link || '',               // 13: 備考
+                        '',                        // 14: 要件添付ファイルパス
+                        '',                        // 15: 要件原文ファイル添付ファイルパス
+                        'Fix済み',                   // 16: 要件ステータス
+                        '',                        // 17: コミット管理情報ID
+                        '',                        // 18: コミット管理情報名称
+                        '',                        // 19: コミット管理情報内容
+                        ''                         // 20: EB1190V_E (エントリー)
+                    ];
+
+                    // Mở rộng row để bao gồm tất cả các cột model support
+                    const extendedRow = this.extendRowWithModelSupport(newRow, row);
+
+                    converted.push(extendedRow);
+                    rowIndex++;
+                }
+
+                this.convertedData = converted;
+                this.showStatus('success', `Đã chuyển đổi thành công ${converted.length} requirements`);
+                this.displayPreview();
+                document.getElementById('exportBtn').disabled = false;
+
+            } catch (error) {
+                this.showStatus('error', `Lỗi chuyển đổi: ${error.message}`);
+            }
+        }
+
+        extendRowWithModelSupport(baseRow, sourceRow) {
+            // Mở rộng base row với model support data
+            const extendedRow = [...baseRow];
+
+            // Đảm bảo row có đủ cột cho template (tối đa 100 cột)
+            while (extendedRow.length < 100) {
+                extendedRow.push('');
+            }
+
+            // Điền model support data nếu có
+            if (this.weatherData && this.weatherData.modelColumns) {
+                for (const modelCol of this.weatherData.modelColumns) {
+                    const sourceValue = sourceRow[modelCol.sourceIndex];
+                    const templateIndex = modelCol.templateIndex;
+
+                    if (templateIndex !== -1 && sourceValue) {
+                        // Chuyển đổi giá trị: ○/O/0 -> 〇, ×/X -> ×
+                        let convertedValue = '';
+                        if (sourceValue === '○' || sourceValue === 'O' || sourceValue === 'o' || sourceValue === '0') {
+                            convertedValue = '〇'; // Chữ O tròn tiếng Nhật
+                        } else if (sourceValue === '×' || sourceValue === 'X' || sourceValue === 'x') {
+                            convertedValue = '×';
+                        } else {
+                            convertedValue = sourceValue; // Giữ nguyên giá trị khác
+                        }
+
+                        extendedRow[templateIndex] = convertedValue;
+                    }
+                }
+            }
+
+            return extendedRow;
+        }
+
+        displayPreview() {
+            const previewContainer = document.getElementById('previewContainer');
+            const previewContent = document.getElementById('previewContent');
+
+            previewContainer.style.display = 'block';
+
+            let html = '';
+            const displayCount = Math.min(10, this.convertedData.length);
+
+            for (let i = 0; i < displayCount; i++) {
+                const row = this.convertedData[i];
+
+                html += `
+                    <div class="data-row">
+                        <div class="row-fields">
+                            <div>
+                                <div class="field-group">
+                                    <div class="field-label">No.</div>
+                                    <div class="field-value">${row[0]}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">機能名称</div>
+                                    <div class="field-value">${row[1]}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">章</div>
+                                    <div class="field-value">${row[2]}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">節</div>
+                                    <div class="field-value">${row[3]}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">要件ID</div>
+                                    <div class="field-value" style="color: #2196F3; font-weight: bold;">${row[4]}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="field-group">
+                                    <div class="field-label">要件名称</div>
+                                    <div class="field-value" style="color: #4CAF50; font-weight: bold;">${row[6]?.substring(0, 100)}${row[6]?.length > 100 ? '...' : ''}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">仕様書バージョン</div>
+                                    <div class="field-value">${row[9]}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">仕様書ファイル名</div>
+                                    <div class="field-value" style="color: #FF9800;">${row[10]?.substring(0, 80)}${row[10]?.length > 80 ? '...' : ''}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">要件内容</div>
+                                    <div class="field-value">${row[11]?.substring(0, 60)}${row[11]?.length > 60 ? '...' : ''}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">ラベル</div>
+                                    <div class="field-value">${row[12] || ' '}</div>
+                                </div>
+                                <div class="field-group">
+                                    <div class="field-label">備考</div>
+                                    <div class="field-value">${row[13] || ' '}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (this.convertedData.length > displayCount) {
+                html += `<div class="count-info">... và ${this.convertedData.length - displayCount} items khác</div>`;
+            }
+
+            previewContent.innerHTML = html;
+        }
+
+        exportData() {
+            if (!this.templateData || this.convertedData.length === 0) return;
+
+            try {
+                // Tạo copy của workbook template
+                const newWorkbook = XLSX.utils.book_new();
+
+                // Copy tất cả sheets từ template
+                const originalWorkbook = this.templateData.workbook;
+                originalWorkbook.SheetNames.forEach(sheetName => {
+                    const originalSheet = originalWorkbook.Sheets[sheetName];
+                    if (sheetName === this.templateData.sheetName) {
+                        // Thay thế sheet 要件情報 với dữ liệu mới
+                        const newSheet = this.createNewRequirementsSheet(originalSheet);
+                        XLSX.utils.book_append_sheet(newWorkbook, newSheet, sheetName);
+                    } else {
+                        // Copy sheet khác như cũ
+                        const copiedSheet = XLSX.utils.aoa_to_sheet(XLSX.utils.sheet_to_json(originalSheet, { header: 1 }));
+                        XLSX.utils.book_append_sheet(newWorkbook, copiedSheet, sheetName);
+                    }
+                });
+
+                // Export file
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+                const filename = `requirements_weather_v2_${timestamp}.xlsx`;
+                XLSX.writeFile(newWorkbook, filename);
+
+                this.showStatus('success', `Đã export file "${filename}" thành công!`);
+
+            } catch (error) {
+                this.showStatus('error', `Lỗi export: ${error.message}`);
+            }
+        }
+
+        createNewRequirementsSheet(originalSheet) {
+            // Đọc template header (dòng 1-5)
+            const templateData = XLSX.utils.sheet_to_json(originalSheet, { header: 1 });
+
+            // Tạo dữ liệu mới
+            const newData = [
+                ...templateData.slice(0, 6), // Giữ nguyên header và dòng mẫu
+                ...this.convertedData        // Thêm dữ liệu converted
+            ];
+
+            return XLSX.utils.aoa_to_sheet(newData);
+        }
+
+        clearAll() {
+            this.weatherData = null;
+            this.templateData = null;
+            this.convertedData = [];
+
+            document.getElementById('weatherFileInput').value = '';
+            document.getElementById('templateFileInput').value = '';
+            document.getElementById('weatherUploadArea').classList.remove('loaded');
+            document.getElementById('templateUploadArea').classList.remove('loaded');
+            document.getElementById('weatherFileInfo').style.display = 'none';
+            document.getElementById('templateFileInfo').style.display = 'none';
+            document.getElementById('convertBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = true;
+            document.getElementById('previewContainer').style.display = 'none';
+            document.getElementById('status').style.display = 'none';
+
+            this.showStatus('info', 'Đã xóa tất cả dữ liệu');
+        }
+
+        showStatus(type, message, showSpinner = false) {
+            const status = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            const spinner = document.getElementById('spinner');
+
+            status.className = `status ${type}`;
+            status.style.display = 'flex';
+            statusText.textContent = message;
+            spinner.style.display = showSpinner ? 'block' : 'none';
+
+            if (!showSpinner) {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 5000);
+            }
+        }
+    }
+
+    // Khởi tạo tool khi DOM đã sẵn sàng
+    document.addEventListener('DOMContentLoaded', () => {
+        new SpecToRequirementsConverter();
+    });
+</script>
 </body>
 </html>
