@@ -29,47 +29,126 @@ class AutomationSuite {
                 type: 'array'
             });
 
-            // Tìm sheet Functional_Spec
-            const functionalSpecSheet = workbook.SheetNames.find(name =>
-                name.toLowerCase().includes('functional') ||
-                name.toLowerCase().includes('spec') ||
-                name.includes('仕様')
-            );
+            console.log('Workbook sheets:', workbook.SheetNames);
 
-            if (!functionalSpecSheet) {
-                throw new Error('Không tìm thấy sheet Functional_Spec');
+            // Tìm sheet Functional_Spec - cải thiện logic tìm kiếm
+            let functionalSpecSheet = null;
+
+            // Tìm exact match trước
+            for (const name of workbook.SheetNames) {
+                if (name.toLowerCase().includes('functional_spec_flattened') ||
+                    name.toLowerCase().includes('functional') && name.toLowerCase().includes('flattened')) {
+                    functionalSpecSheet = name;
+                    break;
+                }
             }
 
-            const worksheet = workbook.Sheets[functionalSpecSheet];
-            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            // Nếu không tìm thấy, tìm functional spec thông thường
+            if (!functionalSpecSheet) {
+                functionalSpecSheet = workbook.SheetNames.find(name =>
+                    name.toLowerCase().includes('functional') ||
+                    name.toLowerCase().includes('spec') ||
+                    name.includes('仕様')
+                );
+            }
 
-            // Đọc tất cả dữ liệu
+            // Nếu vẫn không tìm thấy, lấy sheet đầu tiên
+            if (!functionalSpecSheet && workbook.SheetNames.length > 0) {
+                functionalSpecSheet = workbook.SheetNames[0];
+                console.warn('Không tìm thấy sheet phù hợp, sử dụng sheet đầu tiên:', functionalSpecSheet);
+            }
+
+            if (!functionalSpecSheet) {
+                throw new Error('Không tìm thấy sheet nào trong file Excel');
+            }
+
+            console.log('Using sheet:', functionalSpecSheet);
+
+            const worksheet = workbook.Sheets[functionalSpecSheet];
+
+            // Kiểm tra worksheet có tồn tại không
+            if (!worksheet) {
+                throw new Error(`Sheet "${functionalSpecSheet}" không tồn tại`);
+            }
+
+            // Kiểm tra range
+            if (!worksheet['!ref']) {
+                throw new Error('Sheet không có dữ liệu (missing !ref)');
+            }
+
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            console.log('Sheet range:', range);
+
+            // Đọc tất cả dữ liệu với error handling
             let allData = [];
             for (let R = range.s.r; R <= range.e.r; ++R) {
                 let rowData = [];
                 for (let C = range.s.c; C <= range.e.c; ++C) {
                     const cellAddress = XLSX.utils.encode_cell({c: C, r: R});
                     const cell = worksheet[cellAddress];
-                    rowData.push(cell ? (cell.v || '') : '');
+                    // Đảm bảo luôn có giá trị, tránh undefined
+                    const cellValue = cell ? (cell.v !== undefined ? cell.v : '') : '';
+                    rowData.push(cellValue);
                 }
                 allData.push(rowData);
             }
 
-            // Tìm header row - tìm trong nhiều dòng đầu
+            console.log('Total rows read:', allData.length);
+            console.log('First 3 rows:', allData.slice(0, 3));
+
+            // Tìm header row - cải thiện logic tìm kiếm
             let headerRowIndex = -1;
             for (let i = 0; i < Math.min(10, allData.length); i++) {
-                if (allData[i][0] === 'No.' && allData[i][1] === 'Chapter') {
-                    headerRowIndex = i;
-                    break;
+                const row = allData[i];
+                if (row && row.length > 0) {
+                    // Kiểm tra nhiều pattern để tìm header
+                    if ((row[0] && row[0].toString().toLowerCase().includes('no')) &&
+                        (row[1] && row[1].toString().toLowerCase().includes('chapter'))) {
+                        headerRowIndex = i;
+                        break;
+                    }
                 }
             }
 
-            const headers = allData[headerRowIndex];
-            const dataRows = allData.slice(headerRowIndex + 1);
+            if (headerRowIndex === -1) {
+                // Nếu không tìm thấy header theo pattern, thử dùng dòng đầu tiên có dữ liệu
+                for (let i = 0; i < Math.min(5, allData.length); i++) {
+                    if (allData[i] && allData[i].length > 5) {
+                        headerRowIndex = i;
+                        console.warn('Không tìm thấy header theo pattern, sử dụng dòng:', i);
+                        break;
+                    }
+                }
+            }
+
+            if (headerRowIndex === -1 || !allData[headerRowIndex]) {
+                throw new Error('Không tìm thấy header row hợp lệ trong file');
+            }
+
+            const headers = allData[headerRowIndex] || [];
+            console.log('Headers found at row', headerRowIndex, ':', headers.slice(0, 10));
+
+            // Lấy data rows
+            const dataRows = allData.slice(headerRowIndex + 1) || [];
+
+            // Lọc các dòng có dữ liệu hợp lệ
             const weatherRows = dataRows.filter(row => {
-                // Chỉ cần check có ID không (không rỗng và có nội dung)
-                return row[0] && row[0].toString().trim() !== '';
+                // Đảm bảo row tồn tại và là array
+                if (!row || !Array.isArray(row)) return false;
+
+                // Kiểm tra có ID không (column 0) và có nội dung spec không (column 4 hoặc cột có spec)
+                const hasId = row[0] && row[0].toString().trim() !== '';
+                const hasSpec = row[4] && row[4].toString().trim() !== '';
+
+                return hasId || hasSpec; // Chấp nhận nếu có ID hoặc có spec
             });
+
+            console.log(`Filtered ${weatherRows.length} valid rows from ${dataRows.length} total rows`);
+
+            // Đảm bảo có dữ liệu
+            if (weatherRows.length === 0) {
+                throw new Error('Không tìm thấy dòng dữ liệu hợp lệ nào trong file');
+            }
 
             this.weatherData = {
                 headers: headers,
@@ -85,6 +164,7 @@ class AutomationSuite {
             this.checkAutoReady();
 
         } catch (error) {
+            console.error('Error in handleWeatherFile:', error);
             this.showAutoStatus('error', `Lỗi đọc weather file: ${error.message}`);
         }
     }
@@ -104,6 +184,8 @@ class AutomationSuite {
                 sheetStubs: true
             });
 
+            console.log('Template workbook sheets:', workbook.SheetNames);
+
             // Tìm sheet 要件情報
             const requirementsSheet = workbook.SheetNames.find(name =>
                 name.includes('要件情報') || name.includes('要件')
@@ -112,6 +194,8 @@ class AutomationSuite {
             if (!requirementsSheet) {
                 throw new Error('Không tìm thấy sheet 要件情報');
             }
+
+            console.log('Using template sheet:', requirementsSheet);
 
             this.templateData = {
                 workbook: workbook,
@@ -128,24 +212,37 @@ class AutomationSuite {
             this.checkAutoReady();
 
         } catch (error) {
+            console.error('Error in handleTemplateFile:', error);
             this.showAutoStatus('error', `Lỗi đọc template file: ${error.message}`);
         }
     }
 
     buildTemplateModelMap(worksheet) {
         const modelMap = {};
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
 
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cellAddress = XLSX.utils.encode_cell({c: C, r: 1});
-            const cell = worksheet[cellAddress];
-            if (cell && cell.v && typeof cell.v === 'string') {
-                const value = cell.v.toString();
-                const modelMatch = value.match(/([EG]B\d{4}[VU])/);
-                if (modelMatch) {
-                    modelMap[modelMatch[1]] = C;
+        try {
+            if (!worksheet || !worksheet['!ref']) {
+                console.warn('Template worksheet không hợp lệ');
+                return modelMap;
+            }
+
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({c: C, r: 1});
+                const cell = worksheet[cellAddress];
+                if (cell && cell.v && typeof cell.v === 'string') {
+                    const value = cell.v.toString();
+                    const modelMatch = value.match(/([EG]B\d{4}[VU])/);
+                    if (modelMatch) {
+                        modelMap[modelMatch[1]] = C;
+                    }
                 }
             }
+
+            console.log('Built template model map:', modelMap);
+        } catch (error) {
+            console.error('Error building template model map:', error);
         }
 
         return modelMap;
@@ -161,7 +258,10 @@ class AutomationSuite {
     }
 
     async runAutomation() {
-        if (!this.weatherData || !this.templateData) return;
+        if (!this.weatherData || !this.templateData) {
+            this.showAutoStatus('error', 'Vui lòng upload đủ cả 2 file trước khi chạy automation');
+            return;
+        }
 
         try {
             this.setProgress(0);
@@ -173,6 +273,7 @@ class AutomationSuite {
             await this.sleep(500);
 
             this.flattenedData = this.performFlatten();
+            console.log('Flattened data count:', this.flattenedData ? this.flattenedData.length : 0);
             this.setProgress(40);
 
             // Step 2: Convert
@@ -180,6 +281,7 @@ class AutomationSuite {
             await this.sleep(500);
 
             this.convertedData = this.performConvert();
+            console.log('Converted data count:', this.convertedData ? this.convertedData.length : 0);
             this.setProgress(80);
 
             // Step 3: Export
@@ -192,270 +294,398 @@ class AutomationSuite {
             this.showAutoStatus('success', '🎉 Hoàn thành! File đã được tải về thành công.');
 
         } catch (error) {
+            console.error('Error in runAutomation:', error);
             this.showAutoStatus('error', `Lỗi trong quá trình xử lý: ${error.message}`);
         }
     }
 
-  performFlatten() {
-      const flattened = [];
-      let currentChapter = '';
-      let currentSection = '';
-      let currentSubsection = '';
+    performFlatten() {
+        try {
+            if (!this.weatherData || !this.weatherData.rows) {
+                throw new Error('Không có dữ liệu weather để flatten');
+            }
 
-      // Lưu trữ link và tag của từng level
-      let chapterLink = '', chapterTag = '';
-      let sectionLink = '', sectionTag = '';
-      let subsectionLink = '', subsectionTag = '';
+            const flattened = [];
+            let currentChapter = '';
+            let currentSection = '';
+            let currentSubsection = '';
 
-      for (const row of this.weatherData.rows) {
-          const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
+            // Lưu trữ link và tag của từng level
+            let chapterLink = '', chapterTag = '';
+            let sectionLink = '', sectionTag = '';
+            let subsectionLink = '', subsectionTag = '';
 
-          // Cập nhật Chapter level
-          if (chapter && chapter.trim() !== '') {
-              currentChapter = chapter.trim();
-              chapterLink = link || '';
-              chapterTag = tag || '';
-              // Reset lower levels
-              currentSection = '';
-              currentSubsection = '';
-              sectionLink = '';
-              sectionTag = '';
-              subsectionLink = '';
-              subsectionTag = '';
-          }
+            for (const row of this.weatherData.rows) {
+                // Đảm bảo row là array và có đủ phần tử
+                if (!row || !Array.isArray(row)) continue;
 
-          // Cập nhật Section level
-          if (section && section.trim() !== '') {
-              currentSection = section.trim();
-              sectionLink = link || '';
-              sectionTag = tag || '';
-              // Reset lower level
-              currentSubsection = '';
-              subsectionLink = '';
-              subsectionTag = '';
-          }
+                // Destructuring an toàn với default values
+                const no = row[0] || '';
+                const chapter = row[1] || '';
+                const section = row[2] || '';
+                const subsection = row[3] || '';
+                const spec = row[4] || '';
+                const link = row[5] || '';
+                const tag = row[6] || '';
+                const rest = row.slice(7) || [];
 
-          // Cập nhật Subsection level
-          if (subsection && subsection.trim() !== '') {
-              currentSubsection = subsection.trim();
-              subsectionLink = link || '';
-              subsectionTag = tag || '';
-          }
+                // Cập nhật Chapter level
+                if (chapter && chapter.toString().trim() !== '') {
+                    currentChapter = chapter.toString().trim();
+                    chapterLink = link.toString() || '';
+                    chapterTag = tag.toString() || '';
+                    // Reset lower levels
+                    currentSection = '';
+                    currentSubsection = '';
+                    sectionLink = '';
+                    sectionTag = '';
+                    subsectionLink = '';
+                    subsectionTag = '';
+                }
 
-          // Chỉ xử lý dòng có functional specification
-          if (spec && spec.trim() !== '') {
-              // Gộp link từ tất cả levels
-              const allLinks = [
-                  chapterLink,
-                  sectionLink,
-                  subsectionLink,
-                  link || ''
-              ].filter(l => l && l.trim() !== '').join('\n');
+                // Cập nhật Section level
+                if (section && section.toString().trim() !== '') {
+                    currentSection = section.toString().trim();
+                    sectionLink = link.toString() || '';
+                    sectionTag = tag.toString() || '';
+                    // Reset lower level
+                    currentSubsection = '';
+                    subsectionLink = '';
+                    subsectionTag = '';
+                }
 
-              // Gộp tag từ tất cả levels
-              const allTags = [
-                  chapterTag,
-                  sectionTag,
-                  subsectionTag,
-                  tag || ''
-              ].filter(t => t && t.trim() !== '').join('\n');
+                // Cập nhật Subsection level
+                if (subsection && subsection.toString().trim() !== '') {
+                    currentSubsection = subsection.toString().trim();
+                    subsectionLink = link.toString() || '';
+                    subsectionTag = tag.toString() || '';
+                }
 
-              const flatRow = [
-                  no,
-                  currentChapter,
-                  currentSection,
-                  currentSubsection,
-                  spec,
-                  allLinks,    // Gộp tất cả links
-                  allTags,     // Gộp tất cả tags
-                  ...rest
-              ];
+                // Chỉ xử lý dòng có functional specification
+                if (spec && spec.toString().trim() !== '') {
+                    // Gộp link từ tất cả levels - filter empty strings an toàn
+                    const allLinks = [
+                        chapterLink,
+                        sectionLink,
+                        subsectionLink,
+                        link.toString() || ''
+                    ].filter(l => l && l.trim() !== '').join('\n');
 
-              flattened.push(flatRow);
-          }
-      }
+                    // Gộp tag từ tất cả levels - filter empty strings an toàn
+                    const allTags = [
+                        chapterTag,
+                        sectionTag,
+                        subsectionTag,
+                        tag.toString() || ''
+                    ].filter(t => t && t.trim() !== '').join('\n');
 
-      return flattened;
-  }
+                    const flatRow = [
+                        no.toString(),
+                        currentChapter,
+                        currentSection,
+                        currentSubsection,
+                        spec.toString(),
+                        allLinks,    // Gộp tất cả links
+                        allTags,     // Gộp tất cả tags
+                        ...rest      // Spread an toàn
+                    ];
 
-    performConvert() {
-        const converted = [];
-        let rowIndex = 1;
-
-        // Lọc chỉ các dòng có Functional Specification
-        const specRows = this.flattenedData.filter(row => row[4] && row[4].trim() !== '');
-
-        for (const row of specRows) {
-               const [no, chapter, section, subsection, spec, link, tag, ...rest] = row;
-
-                                // Vì file đã flatten nên chapter và section đã có sẵn ở mọi dòng
-                                const currentChapter = chapter || '';
-
-                                // Ưu tiên subsection, nếu không có thì lấy section
-                                let currentSection = '';
-                                if (subsection && subsection.trim() !== '') {
-                                    currentSection = subsection.trim();
-                                } else if (section && section.trim() !== '') {
-                                    currentSection = section.trim();
-                                }
-
-                                // Tạo 要件ID từ cột No. (WEA_1.1.1.1)
-                                const requirementId = no || '';
-
-                                // Tạo 要件名称 theo format mới: chapter_section_subsection (không có No.)
-                                let requirementName = '';
-                                const nameParts = [];
-                                if (currentChapter && currentChapter.trim() !== '') {
-                                    nameParts.push(currentChapter.trim());
-                                }
-                                if (section && section.trim() !== '') {
-                                    nameParts.push(section.trim());
-                                }
-                                if (subsection && subsection.trim() !== '') {
-                                    nameParts.push(subsection.trim());
-                                }
-                                requirementName = nameParts.join('_');
-
-            // Tạo 仕様書ファイル名 theo format mới - EXTRACT APP NAME từ ID
-            let appName = 'App';
-
-            // Thử extract app name từ ID pattern
-            if (no.includes('_')) {
-                const prefix = no.split('_')[0];
-                if (prefix.length >= 3) {
-                    // Map common prefixes
-                    const appMap = {
-                        'WEA': 'Weather',
-                        'PED': 'Pedometer',
-                        'CAL': 'Calendar',
-                        'CAM': 'Camera',
-                        'GAL': 'Gallery',
-                        'MUS': 'Music',
-                        'VID': 'Video',
-                        'MSG': 'Message',
-                        'PHO': 'Phone',
-                        'CON': 'Contact'
-                    };
-                    appName = appMap[prefix] || prefix;
+                    flattened.push(flatRow);
                 }
             }
 
-            const specFileName = `要求仕様書_${appName}_国内SP_Functional_Spec_no.${no}`;
+            console.log('Flatten completed:', flattened.length, 'rows processed');
+            return flattened;
 
-            // Tạo base row
-            const newRow = [
-                rowIndex,                  // 0: No
-                appName,                   // 1: 機能名称 (auto-detect từ ID)
-                currentChapter,            // 2: 章
-                currentSection,            // 3: 節
-                requirementId,             // 4: 要件ID (NEW)
-                '',                        // 5: SubID
-                requirementName,           // 6: 要件名称 (UPDATED)
-                '',                        // 7: 要件種別
-                '',                        // 8: 要求元
-                '',               // 9: 仕様書バージョン
-                specFileName,             // 10: 仕様書ファイル名 (UPDATED)
-                spec || '',               // 11: 要件内容
-                tag || '',                // 12: ラベル
-                link || '',               // 13: 備考
-                '',                        // 14: 要件添付ファイルパス
-                '',                        // 15: 要件原文ファイル添付ファイルパス
-                'Fix済み',                   // 16: 要件ステータス
-                '',                        // 17: コミット管理情報ID
-                '',                        // 18: コミット管理情報名称
-                '',                        // 19: コミット管理情報内容
-                ''                         // 20: EB1190V_E
-            ];
-
-            // Mở rộng với model support
-            const extendedRow = this.extendRowWithModelSupport(newRow, row);
-            converted.push(extendedRow);
-            rowIndex++;
+        } catch (error) {
+            console.error('Error in performFlatten:', error);
+            throw new Error(`Lỗi flatten dữ liệu: ${error.message}`);
         }
+    }
 
-        return converted;
+    performConvert() {
+        try {
+            if (!this.flattenedData || !Array.isArray(this.flattenedData)) {
+                throw new Error('Không có dữ liệu flattened để convert');
+            }
+
+            const converted = [];
+            let rowIndex = 1;
+
+            // Lọc chỉ các dòng có Functional Specification - với error handling
+            const specRows = this.flattenedData.filter(row => {
+                if (!row || !Array.isArray(row)) return false;
+                const spec = row[4];
+                return spec && spec.toString().trim() !== '';
+            });
+
+            console.log(`Converting ${specRows.length} specification rows`);
+
+            for (const row of specRows) {
+                // Destructuring an toàn
+                const no = row[0] || '';
+                const chapter = row[1] || '';
+                const section = row[2] || '';
+                const subsection = row[3] || '';
+                const spec = row[4] || '';
+                const link = row[5] || '';
+                const tag = row[6] || '';
+                const rest = row.slice(7) || [];
+
+                // Vì file đã flatten nên chapter và section đã có sẵn ở mọi dòng
+                const currentChapter = chapter.toString() || '';
+
+                // Ưu tiên subsection, nếu không có thì lấy section
+                let currentSection = '';
+                if (subsection && subsection.toString().trim() !== '') {
+                    currentSection = subsection.toString().trim();
+                } else if (section && section.toString().trim() !== '') {
+                    currentSection = section.toString().trim();
+                }
+
+                // Tạo 要件ID từ cột No.
+                const requirementId = no.toString() || '';
+
+                // Tạo 要件名称 theo format mới: chapter_section_subsection (không có No.)
+                let requirementName = '';
+                const nameParts = [];
+                if (currentChapter && currentChapter.trim() !== '') {
+                    nameParts.push(currentChapter.trim());
+                }
+                if (section && section.toString().trim() !== '') {
+                    nameParts.push(section.toString().trim());
+                }
+                if (subsection && subsection.toString().trim() !== '') {
+                    nameParts.push(subsection.toString().trim());
+                }
+                requirementName = nameParts.join('_');
+
+                // Tạo 仕様書ファイル名 theo format mới - EXTRACT APP NAME từ ID
+                let appName = 'App';
+
+                // Thử extract app name từ ID pattern
+                const noStr = no.toString();
+                if (noStr.includes('_')) {
+                    const prefix = noStr.split('_')[0];
+                    if (prefix && prefix.length >= 3) {
+                        // Map common prefixes
+                        const appMap = {
+                            'WEA': 'Weather',
+                            'PED': 'Pedometer',
+                            'CAL': 'Calendar',
+                            'CAM': 'Camera',
+                            'GAL': 'Gallery',
+                            'MUS': 'Music',
+                            'VID': 'Video',
+                            'MSG': 'Message',
+                            'PHO': 'Phone',
+                            'CON': 'Contact',
+                            'FLA': 'Flashlight'  // Thêm cho file hiện tại
+                        };
+                        appName = appMap[prefix] || prefix;
+                    }
+                }
+
+                const specFileName = `要求仕様書_${appName}_国内SP_Functional_Spec_no.${noStr}`;
+
+                // Tạo base row với error handling
+                const newRow = [
+                    rowIndex,                      // 0: No
+                    appName,                       // 1: 機能名称 (auto-detect từ ID)
+                    currentChapter,                // 2: 章
+                    currentSection,                // 3: 節
+                    requirementId,                 // 4: 要件ID (NEW)
+                    '',                           // 5: SubID
+                    requirementName,               // 6: 要件名称 (UPDATED)
+                    '',                           // 7: 要件種別
+                    '',                           // 8: 要求元
+                    '',                           // 9: 仕様書バージョン
+                    specFileName,                 // 10: 仕様書ファイル名 (UPDATED)
+                    spec.toString() || '',        // 11: 要件内容
+                    tag.toString() || '',         // 12: ラベル
+                    link.toString() || '',        // 13: 備考
+                    '',                           // 14: 要件添付ファイルパス
+                    '',                           // 15: 要件原文ファイル添付ファイルパス
+                    'Fix済み',                      // 16: 要件ステータス
+                    '',                           // 17: コミット管理情報ID
+                    '',                           // 18: コミット管理情報名称
+                    '',                           // 19: コミット管理情報内容
+                    ''                            // 20: EB1190V_E
+                ];
+
+                // Mở rộng với model support
+                const extendedRow = this.extendRowWithModelSupport(newRow, row);
+                converted.push(extendedRow);
+                rowIndex++;
+            }
+
+            console.log('Convert completed:', converted.length, 'rows created');
+            return converted;
+
+        } catch (error) {
+            console.error('Error in performConvert:', error);
+            throw new Error(`Lỗi convert dữ liệu: ${error.message}`);
+        }
     }
 
     extendRowWithModelSupport(baseRow, sourceRow) {
-        const extendedRow = [...baseRow];
+        try {
+            // Đảm bảo baseRow và sourceRow là arrays
+            if (!Array.isArray(baseRow)) baseRow = [];
+            if (!Array.isArray(sourceRow)) sourceRow = [];
 
-        while (extendedRow.length < 100) {
-            extendedRow.push('');
-        }
+            const extendedRow = [...baseRow];
 
-        // Map model support từ source row
-        const modelColumns = this.getModelColumns();
-        for (const modelCol of modelColumns) {
-            const sourceValue = sourceRow[modelCol.sourceIndex];
-            const templateIndex = modelCol.templateIndex;
-
-            if (templateIndex !== -1 && sourceValue) {
-                let convertedValue = '';
-                if (sourceValue === '○' || sourceValue === 'O' || sourceValue === 'o' || sourceValue === '0') {
-                    convertedValue = '〇';
-                } else if (sourceValue === '×' || sourceValue === 'X' || sourceValue === 'x') {
-                    convertedValue = '×';
-                } else {
-                    convertedValue = sourceValue;
-                }
-
-                extendedRow[templateIndex] = convertedValue;
+            // Mở rộng row đến 100 cột
+            while (extendedRow.length < 100) {
+                extendedRow.push('');
             }
-        }
 
-        return extendedRow;
+            // Map model support từ source row
+            const modelColumns = this.getModelColumns();
+
+            if (modelColumns && Array.isArray(modelColumns)) {
+                for (const modelCol of modelColumns) {
+                    try {
+                        const sourceValue = sourceRow[modelCol.sourceIndex];
+                        const templateIndex = modelCol.templateIndex;
+
+                        if (templateIndex !== -1 && sourceValue !== undefined && sourceValue !== null) {
+                            let convertedValue = '';
+                            const sourceStr = sourceValue.toString();
+
+                            if (sourceStr === '○' || sourceStr === 'O' || sourceStr === 'o' || sourceStr === '0') {
+                                convertedValue = '〇';
+                            } else if (sourceStr === '×' || sourceStr === 'X' || sourceStr === 'x') {
+                                convertedValue = '×';
+                            } else {
+                                convertedValue = sourceStr;
+                            }
+
+                            if (templateIndex < extendedRow.length) {
+                                extendedRow[templateIndex] = convertedValue;
+                            }
+                        }
+                    } catch (modelError) {
+                        console.warn('Error processing model column:', modelCol, modelError);
+                    }
+                }
+            }
+
+            return extendedRow;
+
+        } catch (error) {
+            console.error('Error in extendRowWithModelSupport:', error);
+            return baseRow || [];
+        }
     }
 
     getModelColumns() {
-        const modelColumns = [];
-        const headers = this.weatherData.headers;
+        try {
+            const modelColumns = [];
 
-        for (let i = 7; i < headers.length; i++) {
-            const header = headers[i];
-            if (header && header.match && header.match(/[EG]B\d{4}[VU]/)) {
-                const templateIndex = this.templateData.modelColumnMap[header] || -1;
-                modelColumns.push({
-                    name: header,
-                    sourceIndex: i,
-                    templateIndex: templateIndex
-                });
+            if (!this.weatherData || !this.weatherData.headers || !Array.isArray(this.weatherData.headers)) {
+                console.warn('Weather data headers not available');
+                return modelColumns;
             }
-        }
 
-        return modelColumns;
+            const headers = this.weatherData.headers;
+
+            for (let i = 7; i < headers.length; i++) {
+                const header = headers[i];
+                if (header && typeof header === 'string') {
+                    const modelMatch = header.match(/[EG]B\d{4}[VU]/);
+                    if (modelMatch) {
+                        let templateIndex = -1;
+
+                        if (this.templateData && this.templateData.modelColumnMap) {
+                            templateIndex = this.templateData.modelColumnMap[header] || -1;
+                        }
+
+                        modelColumns.push({
+                            name: header,
+                            sourceIndex: i,
+                            templateIndex: templateIndex
+                        });
+                    }
+                }
+            }
+
+            console.log('Found model columns:', modelColumns.length);
+            return modelColumns;
+
+        } catch (error) {
+            console.error('Error in getModelColumns:', error);
+            return [];
+        }
     }
 
     performExport() {
-        const newWorkbook = XLSX.utils.book_new();
-
-        // Copy tất cả sheets từ template
-        const originalWorkbook = this.templateData.workbook;
-        originalWorkbook.SheetNames.forEach(sheetName => {
-            const originalSheet = originalWorkbook.Sheets[sheetName];
-            if (sheetName === this.templateData.sheetName) {
-                // Thay thế sheet 要件情報 với dữ liệu mới
-                const templateData = XLSX.utils.sheet_to_json(originalSheet, { header: 1 });
-                const newData = [
-                    ...templateData.slice(0, 6), // Giữ nguyên header và dòng mẫu
-                    ...this.convertedData        // Thêm dữ liệu converted
-                ];
-                const newSheet = XLSX.utils.aoa_to_sheet(newData);
-                XLSX.utils.book_append_sheet(newWorkbook, newSheet, sheetName);
-            } else {
-                // Copy sheet khác như cũ
-                const copiedSheet = XLSX.utils.aoa_to_sheet(XLSX.utils.sheet_to_json(originalSheet, { header: 1 }));
-                XLSX.utils.book_append_sheet(newWorkbook, copiedSheet, sheetName);
+        try {
+            if (!this.templateData || !this.templateData.workbook) {
+                throw new Error('Template data không hợp lệ');
             }
-        });
 
-        // Export file
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        const filename = `automated_requirements_v2_${timestamp}.xlsx`;
-        XLSX.writeFile(newWorkbook, filename);
+            if (!this.convertedData || !Array.isArray(this.convertedData) || this.convertedData.length === 0) {
+                throw new Error('Không có dữ liệu converted để export');
+            }
+
+            const newWorkbook = XLSX.utils.book_new();
+
+            // Copy tất cả sheets từ template
+            const originalWorkbook = this.templateData.workbook;
+
+            if (!originalWorkbook.SheetNames || !Array.isArray(originalWorkbook.SheetNames)) {
+                throw new Error('Template workbook không có sheets');
+            }
+
+            originalWorkbook.SheetNames.forEach(sheetName => {
+                try {
+                    const originalSheet = originalWorkbook.Sheets[sheetName];
+
+                    if (sheetName === this.templateData.sheetName) {
+                        // Thay thế sheet 要件情報 với dữ liệu mới
+                        const templateData = XLSX.utils.sheet_to_json(originalSheet, { header: 1 });
+                        const newData = [
+                            ...templateData.slice(0, 6), // Giữ nguyên header và dòng mẫu
+                            ...this.convertedData        // Thêm dữ liệu converted
+                        ];
+                        const newSheet = XLSX.utils.aoa_to_sheet(newData);
+                        XLSX.utils.book_append_sheet(newWorkbook, newSheet, sheetName);
+                    } else {
+                        // Copy sheet khác như cũ
+                        const copiedData = XLSX.utils.sheet_to_json(originalSheet, { header: 1 });
+                        const copiedSheet = XLSX.utils.aoa_to_sheet(copiedData);
+                        XLSX.utils.book_append_sheet(newWorkbook, copiedSheet, sheetName);
+                    }
+                } catch (sheetError) {
+                    console.error(`Error processing sheet ${sheetName}:`, sheetError);
+                    // Skip problematic sheets
+                }
+            });
+
+            // Export file
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            const filename = `automated_requirements_v2_${timestamp}.xlsx`;
+            XLSX.writeFile(newWorkbook, filename);
+
+            console.log('Export completed:', filename);
+
+        } catch (error) {
+            console.error('Error in performExport:', error);
+            throw new Error(`Lỗi export file: ${error.message}`);
+        }
     }
 
     setProgress(percentage) {
-        document.getElementById('autoProgressFill').style.width = percentage + '%';
+        try {
+            const progressFill = document.getElementById('autoProgressFill');
+            if (progressFill) {
+                progressFill.style.width = percentage + '%';
+            }
+        } catch (error) {
+            console.error('Error setting progress:', error);
+        }
     }
 
     sleep(ms) {
@@ -463,19 +693,28 @@ class AutomationSuite {
     }
 
     showAutoStatus(type, message, showSpinner = false) {
-        const status = document.getElementById('autoStatus');
-        const statusText = document.getElementById('autoStatusText');
-        const spinner = document.getElementById('autoSpinner');
-        
-        status.className = `status ${type}`;
-        status.style.display = 'flex';
-        statusText.textContent = message;
-        spinner.style.display = showSpinner ? 'block' : 'none';
-        
-        if (!showSpinner) {
-            setTimeout(() => {
-                status.style.display = 'none';
-            }, 5000);
+        try {
+            const status = document.getElementById('autoStatus');
+            const statusText = document.getElementById('autoStatusText');
+            const spinner = document.getElementById('autoSpinner');
+
+            if (status && statusText) {
+                status.className = `status ${type}`;
+                status.style.display = 'flex';
+                statusText.textContent = message;
+
+                if (spinner) {
+                    spinner.style.display = showSpinner ? 'block' : 'none';
+                }
+
+                if (!showSpinner) {
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 5000);
+                }
+            }
+        } catch (error) {
+            console.error('Error showing status:', error);
         }
     }
 
@@ -484,19 +723,51 @@ class AutomationSuite {
         this.templateData = null;
         this.flattenedData = null;
         this.convertedData = null;
-        
-        document.getElementById('autoWeatherInput').value = '';
-        document.getElementById('autoTemplateInput').value = '';
-        document.getElementById('autoWeatherUpload').classList.remove('loaded');
-        document.getElementById('autoTemplateUpload').classList.remove('loaded');
-        document.getElementById('autoWeatherInfo').style.display = 'none';
-        document.getElementById('autoTemplateInfo').style.display = 'none';
-        document.getElementById('autoProcessBtn').disabled = true;
-        document.getElementById('autoStatus').style.display = 'none';
-        document.getElementById('autoProgress').style.display = 'none';
-        this.setProgress(0);
-        
-        this.showAutoStatus('info', 'Đã xóa tất cả dữ liệu');
+
+        try {
+            const elements = [
+                'autoWeatherInput',
+                'autoTemplateInput',
+                'autoWeatherUpload',
+                'autoTemplateUpload',
+                'autoWeatherInfo',
+                'autoTemplateInfo',
+                'autoProcessBtn',
+                'autoStatus',
+                'autoProgress'
+            ];
+
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    switch(id) {
+                        case 'autoWeatherInput':
+                        case 'autoTemplateInput':
+                            element.value = '';
+                            break;
+                        case 'autoWeatherUpload':
+                        case 'autoTemplateUpload':
+                            element.classList.remove('loaded');
+                            break;
+                        case 'autoWeatherInfo':
+                        case 'autoTemplateInfo':
+                        case 'autoStatus':
+                        case 'autoProgress':
+                            element.style.display = 'none';
+                            break;
+                        case 'autoProcessBtn':
+                            element.disabled = true;
+                            break;
+                    }
+                }
+            });
+
+            this.setProgress(0);
+            this.showAutoStatus('info', 'Đã xóa tất cả dữ liệu');
+
+        } catch (error) {
+            console.error('Error clearing automation:', error);
+        }
     }
 }
 
@@ -510,26 +781,40 @@ function openTool(toolType) {
 }
 
 function runAutomation() {
-    window.automationSuite.runAutomation();
+    if (window.automationSuite) {
+        window.automationSuite.runAutomation();
+    } else {
+        console.error('AutomationSuite not initialized');
+    }
 }
 
 function clearAutomation() {
-    window.automationSuite.clearAutomation();
+    if (window.automationSuite) {
+        window.automationSuite.clearAutomation();
+    } else {
+        console.error('AutomationSuite not initialized');
+    }
 }
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    window.automationSuite = new AutomationSuite();
-    
-    // Add hover effects to tool cards
-    document.querySelectorAll('.tool-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const toolId = card.id;
-            if (toolId === 'tool1') {
-                openTool('flatten');
-            } else if (toolId === 'tool2') {
-                openTool('converter');
-            }
+    try {
+        window.automationSuite = new AutomationSuite();
+
+        // Add hover effects to tool cards
+        document.querySelectorAll('.tool-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const toolId = card.id;
+                if (toolId === 'tool1') {
+                    openTool('flatten');
+                } else if (toolId === 'tool2') {
+                    openTool('converter');
+                }
+            });
         });
-    });
+
+        console.log('AutomationSuite initialized successfully');
+    } catch (error) {
+        console.error('Error initializing AutomationSuite:', error);
+    }
 });
