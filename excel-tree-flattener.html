@@ -498,18 +498,34 @@
                         allData.push(rowData);
                     }
 
-                    // Tìm header row
-                    let headerRowIndex = -1;
-                    for (let i = 0; i < allData.length; i++) {
-                        if (allData[i][1] === 'Chapter') {
-                            headerRowIndex = i;
-                            break;
-                        }
+                    // Tìm header row - cải thiện logic tìm kiếm
+            let headerRowIndex = -1;
+            for (let i = 0; i < Math.min(10, allData.length); i++) {
+                const row = allData[i];
+                if (row && row.length > 0) {
+                    // Kiểm tra nhiều pattern để tìm header
+                    if ((row[0] && row[0].toString().toLowerCase().includes('no')) &&
+                        (row[1] && row[1].toString().toLowerCase().includes('chapter'))) {
+                        headerRowIndex = i;
+                        break;
                     }
+                }
+            }
 
-                    if (headerRowIndex === -1) {
-                        throw new Error('Không tìm thấy header row với "No." và "Chapter"');
+            if (headerRowIndex === -1) {
+                // Nếu không tìm thấy header theo pattern, thử dùng dòng đầu tiên có dữ liệu
+                for (let i = 0; i < Math.min(5, allData.length); i++) {
+                    if (allData[i] && allData[i].length > 5) {
+                        headerRowIndex = i;
+                        console.warn('Không tìm thấy header theo pattern, sử dụng dòng:', i);
+                        break;
                     }
+                }
+            }
+
+            if (headerRowIndex === -1 || !allData[headerRowIndex]) {
+                throw new Error('Không tìm thấy header row hợp lệ trong file');
+            }
 
                     this.headers = allData[headerRowIndex];
                     const dataRows = allData.slice(headerRowIndex + 1);
